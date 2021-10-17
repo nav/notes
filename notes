@@ -26,10 +26,11 @@ Set DEBUG=1 to enable debug messages.
 
 Positional arguments:
 
-init                    Create notes configuration.
-sync <path>             Sync private data with S3.
-sync-public <path>      Sync public data with S3.
-link <object>           Generate presigned link to a private object.
+init                          Create notes configuration.
+sync <src> [dest]             Sync private data with S3.
+sync-public <src> [dest]      Sync public data with S3.
+link <object>                 Generate presigned link to a private object.
+rm <path>                     Remove objects at given path (recursively).
 
 EOF
 }
