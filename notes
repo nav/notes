@@ -5,9 +5,9 @@ ARG1=${2} # Multipurpose. See below for usage
 
 
 APP_NAME=notes
-CONFIG_FILE=~/.config/notes/config
+CONFIG_FILE=${HOME}/.config/notes/config
 DEBUG=${DEBUG:-0}
-TOKEN_FILE=~/.config/notes/token
+TOKEN_FILE=${HOME}/.config/notes/token
 
 
 _usage() {
@@ -51,13 +51,8 @@ _check_requirements() {
 }
 
 _check_token_expiry() {
-  # TODO(nav): This check is broken and requires manual removal.
-
   # Default expiry of token is 15 mins. We remove token if it's older than 14 mins
-  if [[ $(find "${TOKEN_FILE}" -mmin +14 -print) ]]; then
-    rm ${TOKEN_FILE}
-    [ ${DEBUG} == "1" ] && echo "Expired token removed."
-  fi
+  find ${TOKEN_FILE} -mmin +14 -exec rm {} \;
 }
 
 
