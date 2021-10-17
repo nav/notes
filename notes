@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 
 COMMAND=${1:-usage}
-ARG1=${2}
-ARG2=${3}
+ARG1=${2} # Multipurpose. See below for usage
+
 
 APP_NAME=notes
 CONFIG_FILE=~/.config/notes/config
@@ -21,14 +21,14 @@ Additionally, you need to provide:
  - Name of the AWS profile if it's different from "default"
  - ARN of the role that can be assumed when copying files to S3
  - Name of the S3 Bucket where files will be uploaded
+ - Local directory to be used for syncing
 
 Set DEBUG=1 to enable debug messages.
 
 Positional arguments:
 
 init                          Create notes configuration.
-sync <src> [dest]             Sync private data with S3.
-sync-public <src> [dest]      Sync public data with S3.
+sync                          Sync data with S3.
 link <object>                 Generate presigned link to a private object.
 rm <path>                     Remove objects at given path (recursively).
 
@@ -51,6 +51,8 @@ _check_requirements() {
 }
 
 _check_token_expiry() {
+  # TODO(nav): This check is broken and requires manual removal.
+
   # Default expiry of token is 15 mins. We remove token if it's older than 14 mins
   if [[ $(find "${TOKEN_FILE}" -mmin +14 -print) ]]; then
     rm ${TOKEN_FILE}
@@ -85,21 +87,6 @@ _get_token() {
   export AWS_ACCOUNT=$(aws --profile=${AWS_PROFILE} sts get-caller-identity | jq -r '.Account')
 }
 
-SYNC_CMD=
-_sync() {
-  source ${CONFIG_FILE}
-  _get_token;
-
-  if [[ -d ${ARG1} ]]; then
-    SYNC_CMD="aws s3 sync ${ARG1}"
-  elif [[ -f ${ARG1} ]]; then
-    SYNC_CMD="aws s3 cp ${ARG1}"
-  else
-    echo "${ARG1} is not valid"
-    exit 1
-  fi
-}
-
 ###
 
 init() {
@@ -108,32 +95,31 @@ init() {
   AWS_PROFILE=
   AWS_ROLE_ARN=
   S3_BUCKET=
+  SYNC_DIR=
 
   read -p "Enter AWS profile name [default]: " AWS_PROFILE
   AWS_PROFILE=${AWS_PROFILE:-default}
   read -p "Enter AWS Role ARN: " AWS_ROLE_ARN
   read -p "Enter S3 Bucket name: " S3_BUCKET
+  read -p "Enter local directory to sync [~/Notes]: " SYNC_DIR
+  SYNC_DIR=${SYNC_DIR:-${HOME}/Notes}
 
   touch ${CONFIG_FILE}
   chmod 600 ${CONFIG_FILE}
   echo "AWS_PROFILE=${AWS_PROFILE}" >> ${CONFIG_FILE}
   echo "AWS_ROLE_ARN=${AWS_ROLE_ARN}" >> ${CONFIG_FILE}
   echo "S3_BUCKET=${S3_BUCKET}" >> ${CONFIG_FILE}
+  echo "SYNC_DIR=${SYNC_DIR}" >> ${CONFIG_FILE}
 
   echo "Initialized."
 }
 
-sync_private() {
-  _sync;
-  SYNC_CMD="${SYNC_CMD} s3://${S3_BUCKET}/private/${ARG2}"
-  eval ${SYNC_CMD}
+sync() {
+  source ${CONFIG_FILE}
+  _get_token;
+  aws s3 sync ${SYNC_DIR} s3://${S3_BUCKET}
 }
 
-sync_public() {
-  _sync;
-  SYNC_CMD="${SYNC_CMD} s3://${S3_BUCKET}/~/${ARG2}"
-  eval ${SYNC_CMD}
-}
 
 link() {
   source ${CONFIG_FILE}
@@ -157,9 +143,7 @@ if [ $COMMAND = "init" ]; then
   fi
   init;
 elif [ $COMMAND = "sync" ]; then
-  sync_public;
-elif [ $COMMAND = "sync-private" ]; then
-  sync_private;
+  sync;
 elif [ $COMMAND = "link" ]; then
   link;
 elif [ $COMMAND = "rm" ]; then
