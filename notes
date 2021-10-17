@@ -1,0 +1,159 @@
+#!/usr/bin/env bash
+
+COMMAND=${1:-usage}
+ARG1=${2}
+
+APP_NAME=notes
+CONFIG_FILE=~/.config/notes/config
+DEBUG=${DEBUG:-0}
+TOKEN_FILE=~/.config/notes/token
+
+
+_usage() {
+  cat <<EOF
+Usage: [DEBUG=1] ${0} <command>
+
+This script allows you to copy data to S3. You need a few things in place to use
+this tool. You must have aws-cli and jq installed.
+
+Additionally, you need to provide:
+ - Name of the AWS profile if it's different from "default"
+ - ARN of the role that can be assumed when copying files to S3
+ - Name of the S3 Bucket where files will be uploaded
+
+Set DEBUG=1 to enable debug messages.
+
+Positional arguments:
+
+init                    Create notes configuration.
+sync <path>             Sync private data with S3.
+sync-public <path>      Sync public data with S3.
+link <object>           Generate presigned link to a private object.
+
+EOF
+}
+
+_check_config_location() {
+  CONFIG_LOCATION=$(dirname ${CONFIG_FILE})
+  # Ensure config location is writable
+  # Ensire config location exists
+  mkdir -p ${CONFIG_LOCATION}
+  chmod -R 700 ${CONFIG_LOCATION}
+}
+
+_check_requirements() {
+  REQS="aws jq"
+  for REQ in $REQS; do
+    command -v ${REQ} >/dev/null && continue || { echo "${REQ} is not installed."; exit 1; }
+  done
+}
+
+_check_token_expiry() {
+  # Default expiry of token is 15 mins. We remove token if it's older than 14 mins
+  if [[ $(find "${TOKEN_FILE}" -mmin +14 -print) ]]; then
+    rm ${TOKEN_FILE}
+    [ ${DEBUG} == "1" ] && echo "Expired token removed."
+  fi
+}
+
+
+_get_token() {
+  _check_token_expiry;
+
+  if [ -f "${TOKEN_FILE}" ]; then
+    TOKEN=$(cat ${TOKEN_FILE})
+    [ ${DEBUG} == "1" ] && echo "Reusing existing authentication token."
+  else
+     source ${CONFIG_FILE}
+     TOKEN=$(aws --profile=${AWS_PROFILE} sts assume-role \
+       --role-arn ${AWS_ROLE_ARN} \
+       --role-session-name \
+       ${APP_NAME}-role-assume-role)
+        
+     echo ${TOKEN} > ${TOKEN_FILE}
+     chmod 600 ${TOKEN_FILE}
+    
+     [ ${DEBUG} == "1" ] && echo "Authentication token renewed."
+  fi
+
+  export AWS_ACCESS_KEY_ID=$(echo ${TOKEN} | jq -r '.Credentials.AccessKeyId')
+  export AWS_SECRET_ACCESS_KEY=$(echo ${TOKEN} | jq -r '.Credentials.SecretAccessKey')
+  export AWS_SESSION_TOKEN=$(echo ${TOKEN} | jq -r '.Credentials.SessionToken')
+  export AWS_REGION=${AWS_REGION:-us-west-2}
+  export AWS_ACCOUNT=$(aws --profile=${AWS_PROFILE} sts get-caller-identity | jq -r '.Account')
+}
+
+SYNC_CMD=
+_sync() {
+  source ${CONFIG_FILE}
+  _get_token;
+
+  if [[ -d ${ARG1} ]]; then
+    SYNC_CMD="aws s3 sync ${ARG1}"
+  elif [[ -f ${ARG1} ]]; then
+    SYNC_CMD="aws s3 cp ${ARG1}"
+  else
+    echo "${ARG1} is not valid"
+    exit 1
+  fi
+}
+
+###
+
+init() {
+  _check_config_location;
+
+  AWS_PROFILE=
+  AWS_ROLE_ARN=
+  S3_BUCKET=
+
+  read -p "Enter AWS profile name [default]: " AWS_PROFILE
+  AWS_PROFILE=${AWS_PROFILE:-default}
+  read -p "Enter AWS Role ARN: " AWS_ROLE_ARN
+  read -p "Enter S3 Bucket name: " S3_BUCKET
+
+  touch ${CONFIG_FILE}
+  chmod 600 ${CONFIG_FILE}
+  echo "AWS_PROFILE=${AWS_PROFILE}" >> ${CONFIG_FILE}
+  echo "AWS_ROLE_ARN=${AWS_ROLE_ARN}" >> ${CONFIG_FILE}
+  echo "S3_BUCKET=${S3_BUCKET}" >> ${CONFIG_FILE}
+
+  echo "Initialized."
+}
+
+sync_private() {
+  _sync;
+  SYNC_CMD="${SYNC_CMD} s3://${S3_BUCKET}/private/"
+  eval ${SYNC_CMD}
+}
+
+sync_public() {
+  _sync;
+  SYNC_CMD="${SYNC_CMD} s3://${S3_BUCKET}/~/"
+  eval ${SYNC_CMD}
+}
+
+link() {
+  source ${CONFIG_FILE}
+  _get_token;
+  aws s3 presign s3://${S3_BUCKET}/${ARG1}
+}
+### 
+
+_check_requirements;
+
+if [ $COMMAND = "init" ]; then
+  if [ -f "${CONFIG_FILE}" ]; then
+     echo "Config file (${CONFIG_FILE}) already exists. Remove it before initializing again."
+     exit 1
+  fi
+  init;
+elif [ $COMMAND = "sync" ]; then
+  sync_public;
+elif [ $COMMAND = "sync-private" ]; then
+  sync_private;
+elif [ $COMMAND = "link" ]; then
+  link;
+else
+  _usage;
+fi
