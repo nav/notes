@@ -2,6 +2,7 @@
 
 COMMAND=${1:-usage}
 ARG1=${2}
+ARG2=${3}
 
 APP_NAME=notes
 CONFIG_FILE=~/.config/notes/config
@@ -123,13 +124,13 @@ init() {
 
 sync_private() {
   _sync;
-  SYNC_CMD="${SYNC_CMD} s3://${S3_BUCKET}/private/"
+  SYNC_CMD="${SYNC_CMD} s3://${S3_BUCKET}/private/${ARG2}"
   eval ${SYNC_CMD}
 }
 
 sync_public() {
   _sync;
-  SYNC_CMD="${SYNC_CMD} s3://${S3_BUCKET}/~/"
+  SYNC_CMD="${SYNC_CMD} s3://${S3_BUCKET}/~/${ARG2}"
   eval ${SYNC_CMD}
 }
 
