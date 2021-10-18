@@ -112,6 +112,7 @@ sync() {
   source ${CONFIG_FILE}
   _get_token;
   aws s3 sync ${SYNC_DIR} s3://${S3_BUCKET}
+  aws s3 sync s3://${S3_BUCKET} ${SYNC_DIR}
 }
 
 
