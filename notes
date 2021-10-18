@@ -52,7 +52,7 @@ _check_requirements() {
 
 _check_token_expiry() {
   # Default expiry of token is 15 mins. We remove token if it's older than 14 mins
-  find ${TOKEN_FILE} -mmin +14 -exec rm {} \;
+  find ${TOKEN_FILE} -mmin +14 -exec rm {} \; &> /dev/null
 }
 
 
