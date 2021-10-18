@@ -30,7 +30,6 @@ Positional arguments:
 init                          Create notes configuration.
 sync                          Sync data with S3.
 link <object>                 Generate presigned link to a private object.
-rm <path>                     Remove objects at given path (recursively).
 
 EOF
 }
@@ -122,11 +121,6 @@ link() {
   aws s3 presign s3://${S3_BUCKET}/${ARG1}
 }
 
-rm() {
-  source ${CONFIG_FILE}
-  _get_token;
-  aws s3 rm --recursive s3://${S3_BUCKET}/${ARG1}
-}
 ### 
 
 _check_requirements;
@@ -141,8 +135,6 @@ elif [ $COMMAND = "sync" ]; then
   sync;
 elif [ $COMMAND = "link" ]; then
   link;
-elif [ $COMMAND = "rm" ]; then
-  rm;
 else
   _usage;
 fi
