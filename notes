@@ -27,9 +27,10 @@ Set DEBUG=1 to enable debug messages.
 
 Positional arguments:
 
-init                          Create notes configuration.
-sync                          Sync data with S3.
-link <object>                 Generate presigned link to a private object.
+init              Create notes configuration.
+push              Push and sync data with S3.
+pull              Pull data from S3 into empty folder.
+liink <object>    Generate presigned link to a private object.
 
 EOF
 }
@@ -108,19 +109,25 @@ init() {
   echo "Initialized."
 }
 
-sync() {
+
+pull() {
   source ${CONFIG_FILE}
   _get_token;
-  aws s3 sync ${SYNC_DIR} s3://${S3_BUCKET} --delete
-  aws s3 sync s3://${S3_BUCKET} ${SYNC_DIR} --delete
+  aws s3 sync s3://${S3_BUCKET} ${SYNC_DIR}
 }
 
+push() {
+  source ${CONFIG_FILE}
+  _get_token;
+  aws s3 sync ${SYNC_DIR} s3://${S3_BUCKET}
+}
 
 link() {
   source ${CONFIG_FILE}
   _get_token;
   aws s3 presign s3://${S3_BUCKET}/${ARG1}
 }
+
 
 ### 
 
@@ -132,8 +139,11 @@ if [ $COMMAND = "init" ]; then
      exit 1
   fi
   init;
-elif [ $COMMAND = "sync" ]; then
-  sync;
+  pull;
+elif [ $COMMAND = "pull" ]; then
+  pull;
+elif [ $COMMAND = "push" ]; then
+  push;
 elif [ $COMMAND = "link" ]; then
   link;
 else
