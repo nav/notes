@@ -30,7 +30,7 @@ Positional arguments:
 init              Create notes configuration.
 push              Push and sync data with S3.
 pull              Pull data from S3 into empty folder.
-liink <object>    Generate presigned link to a private object.
+link <object>    Generate presigned link to a private object.
 
 EOF
 }
@@ -119,7 +119,7 @@ pull() {
 push() {
   source ${CONFIG_FILE}
   _get_token;
-  aws s3 sync ${SYNC_DIR} s3://${S3_BUCKET}
+  aws s3 sync ${SYNC_DIR} s3://${S3_BUCKET} --exclude "*.DS_Store*"
 }
 
 link() {
